@@ -122,7 +122,7 @@ Contributions are welcome! Please open an issue to discuss ideas or submit a PR 
 ### License & Contact
 This project is released under the MIT License. See `LICENSE` for details.
 
-Author: Your Name (your.email@example.com)
+Author: nikk909 (yinghua253659@163.com)
 
 ### TODO / Future Work
 - Integrate transformer‑based sentiment (e.g., DistilBERT) behind a feature flag
