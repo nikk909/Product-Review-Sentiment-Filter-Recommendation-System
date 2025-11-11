@@ -1,4 +1,4 @@
-## Product Review Sentiment Filter & Recommendation System (IR‑Focused)
+## Information Retrieval Combining Review Usefulness and Relevance (IR‑Focused)
 
 ### Project Objective
 Build a  Information Retrieval (IR) pipeline over product reviews (CSV). Users enter attribute‑style queries (e.g., “battery life”, “sound quality”) and receive the most relevant, high‑value reviews.
