@@ -1,6 +1,6 @@
 ## Product Review Sentiment Filter & Recommendation System
 
-![Architecture](architecture.png)
+![Architecture](architecture.jpg)
 
 [![GitHub stars](https://img.shields.io/github/stars/your-username/your-repo?style=social)](https://github.com/your-username/your-repo/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/your-username/your-repo?style=social)](https://github.com/your-username/your-repo/network/members)
