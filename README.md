@@ -43,6 +43,19 @@ This project focuses on the Information Retrieval (IR) core of a review assistan
 
 High‑level flow: Index → Query → Retrieve → Rank → Filter
 
+### 中文说明（IR 核心概览）
+- **项目目的**：构建一个信息检索（IR）管线，针对商品评价（CSV 数据），让用户输入“续航”“音质”等属性型关键词，返回最相关、最有价值的评论。
+- **检索流程（课程基础）**：
+  1) 文档表示：将评论文本（可含标题/品牌）表示为 TF‑IDF 或 BM25 向量，字段可设权重；
+  2) 建立索引：构建稀疏矩阵/倒排结构，并保存点赞、是否含图、时间等元数据；
+  3) 查询处理：小写化、去标点、停用词；英文分词/中文分词；同义词映射（battery life↔续航）；
+  4) 候选检索：以 TF‑IDF 余弦或 BM25 取 top‑k 候选；
+  5) 排序融合：`FinalScore = λ·LexicalScore + (1−λ)·Usefulness`（λ 可调；Usefulness 由 likes/字数/含图等线性组合）；
+  6) 过滤：按情感/点赞/字数阈值收敛结果；
+  7) 评测（选做）：用小型标注查询集做 precision@k/recall@k，对比不同配置。
+- **使用方式**：README 已给出 CLI 与 Python 示例，演示如何加载数据、建立索引、执行查询并保存结果。
+- **数据来源与合规**：推荐 Kaggle Amazon 小型评论集；在合规前提下可抽取 JD/Tmall 公开评论页；社交平台（Reddit、Twitter/X、微博）应优先使用官方 API，遵守 robots.txt 和平台政策。
+
 ### Information Retrieval Details
 - **Indexing**
   - Tokenization: English uses word tokenizers; Chinese uses word segmentation (e.g., jieba) to support CJK terms like “续航/音质”.
