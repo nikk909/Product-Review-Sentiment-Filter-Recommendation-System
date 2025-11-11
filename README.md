@@ -25,12 +25,37 @@ This project tackles a practical e‑commerce challenge: when buying products (e
 - **Parallelism**: Python `concurrent.futures` or `multiprocessing` for two main stages:
   - Sentiment classification on batches of reviews.
   - Parallel extraction of usefulness features (length, likes, has_image, etc.).
-- **IR & Recommendation**:
-  - Tokenization + TF‑IDF vectorization for keyword search and query expansion.
-  - Cosine similarity to retrieve cross‑product reviews aligned with user intent.
+- **IR & Recommendation (Core IR Design)**:
+  - Indexing with TF‑IDF or BM25; per‑field weighting (e.g., title > review_text).
+  - Query parsing with tokenization, language detection, synonym/alias expansion.
+  - Ranking: combine lexical relevance with usefulness score (likes/length/media).
 
 High‑level flow:
 1) Ingest dataset → 2) Parallel sentiment tagging → 3) Parallel feature extraction → 4) Usefulness score & filter → 5) Keyword search → 6) Cross‑product recommendation.
+
+### Information Retrieval Details
+- **Indexing**
+  - Tokenization: English uses word tokenizers; Chinese uses word segmentation (e.g., jieba) to support CJK terms like “续航/音质”.
+  - Representation: TF‑IDF vectors (scikit‑learn) or BM25 (via rank‑bm25) built over `review_text` and optionally `product_title/brand`.
+  - Field boosts: `title: 1.5`, `brand: 1.2`, `review_text: 1.0` (tunable).
+- **Query Processing**
+  - Language detection → pick tokenizer.
+  - Normalization: lowercasing, stop‑word removal, punctuation stripping.
+  - Synonyms/aliases: lightweight dictionary (e.g., “battery life” ↔ “续航”, “sound quality” ↔ “音质/声质”).
+  - Optional query expansion: add top‑k terms from pseudo‑relevance feedback.
+- **Filtering**
+  - Sentiment facet: keep `positive/negative` or both; drop `neutral` by default.
+  - Usefulness thresholds: `min_words`, `min_likes`, `has_image` flag.
+  - Time window: filter by `created_at` to prioritize recency.
+- **Ranking**
+  - Base lexical score: cosine similarity (TF‑IDF) or BM25 score.
+  - Usefulness score: e.g., `alpha*log1p(likes) + beta*has_image + gamma*word_norm`.
+  - Final score: `lambda*lexical + (1-lambda)*usefulness` (all coefficients tunable via CLI).
+- **Recommendation (Query‑Aligned)**
+  - For a user query (e.g., “laptop battery”), retrieve top results from other brands’ products using the same index, then re‑rank by usefulness and diversity (MMR).
+- **Evaluation (optional)**
+  - Offline: precision@k/recall@k for a set of labeled queries.
+  - Online: click‑through on recommended reviews; dwell time as proxy.
 
 ### Installation & Quick Start
 1. Clone the repository
@@ -100,13 +125,22 @@ pipe.save(results, path="results.json")
 ```
 
 ### Datasets
-- **Amazon Product Reviews (Small)** on Kaggle: includes >5k reviews with ratings, text, and helpfulness signals. Download: [Kaggle – Amazon Product Reviews (Small)](https://www.kaggle.com/)
-- **Chinese e‑commerce subsets** (e.g., JD.com sample reviews) for multilingual testing. Sources vary; you can collect publicly available samples that include text, rating, likes, and media flags.
+- **Amazon Product Reviews (Small)** on Kaggle: includes >5k reviews with ratings, text, and helpfulness signals. Download via Kaggle: [Kaggle – Amazon Product Reviews (Small)](https://www.kaggle.com/).
+- **JD/JD.com (京东) samples**: Publicly visible product review pages provide text, ratings, likes, and images; scrape only where permitted and cache to CSV with fields listed below.
+- **Taobao/Tmall public product pages**: Public facing review snippets can be used similarly where allowed; ensure compliance with site policies and local laws.
+- Place final CSVs under `data/`; one file per product category is recommended for clean indexing.
 
 Expected CSV schema (minimal):
 ```text
 review_id,product_id,product_title,brand,language,rating,review_text,likes,has_image,created_at
 ```
+
+#### Social Media Sources (evidence of accessibility)
+- **Reddit**: The Reddit API supports authenticated access to posts and comments; third‑party libraries exist for collection (e.g., PRAW). See the official API docs via the developer portal: [Reddit Developer Platform](https://developers.reddit.com/). Adhere to API rate limits and terms.
+- **Twitter/X**: Official API access (paid/free tiers subject to change) allows programmatic retrieval of tweets and engagement metrics; consult [X Developer Platform](https://developer.twitter.com/). Respect policy and rate limits.
+- **Weibo (新浪微博)**: Public pages expose posts and comments; availability depends on login/anti‑scraping measures and legal constraints. Obtain permission where required and throttle requests.
+
+Use any social data strictly for research/educational purposes, respect robots.txt, platform terms, and regional regulations. Prefer platform APIs over HTML scraping where possible.
 
 ### What’s Innovative Here
 - **Sentiment filtering + usefulness ranking** combined end‑to‑end to directly tackle the “real vs. noisy” review pain point.
