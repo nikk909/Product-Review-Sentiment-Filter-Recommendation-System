@@ -8,30 +8,40 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#)
 
 ### Introduction
-This project tackles a practical e‑commerce challenge: when buying products (e.g., laptops, headphones), buyers face oceans of noisy reviews — astroturfing, irrelevant or empty comments — making it hard to quickly find trustworthy, decision‑critical feedback (e.g., “Does this laptop meet its battery life claims?”). Our system performs parallel sentiment analysis and usefulness ranking, then retrieves and recommends high‑quality, relevant reviews across similar products.
+This project focuses on the Information Retrieval (IR) core of a review assistant. We use course‑level IR techniques to let users issue attribute‑style queries (e.g., “battery life”, “sound quality”) and retrieve the most relevant reviews. The emphasis is on indexing, query processing, matching, ranking, filtering, and simple evaluation with TF‑IDF/BM25 and cosine similarity.
 
-中文简介：本项目聚焦真实有用评论的高效发现。通过并行情感分析与有用性特征抽取，过滤“水军/无意义”评论；结合关键词检索与轻量级关联推荐，为用户快速定位“续航/音质”等属性相关的优质评论，并跨品牌推荐相似商品的高价值评价。
+中文简介：本项目聚焦信息检索基础，实现“索引、查询、匹配、排序、过滤、评测”的清晰管线，用课程级方法（TF‑IDF/BM25）支持属性关键词检索如“续航/音质”，返回最相关的评论。
 
-### Features
-- **Parallel sentiment analysis**: Multi-threaded VADER/TextBlob classifies reviews into positive/negative/neutral and filters low-signal neutral content.
-- **Usefulness scoring & ranking**: Rank by signals such as upvotes/likes, word count, presence of media (images), and recency.
-- **Faceted filtering**: Filter by sentiment polarity and usefulness thresholds (e.g., likes ≥ X, words ≥ Y).
-- **Attribute keyword search**: Search for properties like "battery life", "sound quality", "build" to surface relevant reviews.
-- **Lightweight recommendation**: Given a query (e.g., "laptop battery"), recommend top reviews from similar products using TF‑IDF/keyword association — no heavy CF needed.
-- **Batch-friendly pipeline**: CSV in, CSV/JSON out; designed for offline or service mode.
+### Scope and Features (IR-Focused)
+- **Indexing**: Build TF‑IDF or BM25 indices on review text; optional field boosts for `product_title/brand`.
+- **Query processing**: Tokenization, normalization, stop‑word removal, simple synonym/alias expansion.
+- **Matching**: Vector space matching (cosine similarity) or BM25 scoring.
+- **Ranking**: Fuse lexical relevance with simple usefulness priors (likes, word count).
+- **Filtering**: Optional sentiment/usefulness thresholds.
+- **Evaluation**: Precision@k on a small labeled query set（可选）.
 
-### System Architecture
-- **Languages & Libraries**: Python 3.9+, NLTK/VADER or TextBlob for sentiment; scikit‑learn for TF‑IDF; pandas for I/O.
-- **Parallelism**: Python `concurrent.futures` or `multiprocessing` for two main stages:
-  - Sentiment classification on batches of reviews.
-  - Parallel extraction of usefulness features (length, likes, has_image, etc.).
-- **IR & Recommendation (Core IR Design)**:
-  - Indexing with TF‑IDF or BM25; per‑field weighting (e.g., title > review_text).
-  - Query parsing with tokenization, language detection, synonym/alias expansion.
-  - Ranking: combine lexical relevance with usefulness score (likes/length/media).
+### IR Design Details (Course Fundamentals)
+- **Document Representation**
+  - Vocabulary on `review_text`（可选加入 `product_title/brand` 设定字段权重）
+  - Weighting: TF‑IDF（log‑tf + idf 平滑）或 BM25（k1、b 参数）
+- **Indexing**
+  - TF‑IDF 用 scikit‑learn 构建稀疏矩阵；BM25 可用 rank‑bm25
+  - 保存文档长度与元数据（likes、has_image、created_at）
+- **Query Processing**
+  - 归一化（小写、去标点）、停用词、分词（英文/中文）
+  - 同义词表：battery life↔续航，sound quality↔音质/声质
+- **Retrieval and Matching**
+  - TF‑IDF + 余弦相似 或 BM25 进行 top‑k 候选检索
+  - 可选伪相关反馈（PRF）扩展查询词
+- **Ranking（与有用性融合）**
+  - FinalScore = λ·LexicalScore + (1−λ)·Usefulness（0≤λ≤1）
+  - Usefulness 由 log(1+likes)、has_image、word_count 线性组合并归一
+- **Filtering**
+  - 可按情感/有用性阈值过滤：`min_words`、`min_likes`、`has_image`
+- **Evaluation（可选）**
+  - Precision@k/Recall@k；对比 TF‑IDF vs BM25、不同 λ/阈值
 
-High‑level flow:
-1) Ingest dataset → 2) Parallel sentiment tagging → 3) Parallel feature extraction → 4) Usefulness score & filter → 5) Keyword search → 6) Cross‑product recommendation.
+High‑level flow: Index → Query → Retrieve → Rank → Filter
 
 ### Information Retrieval Details
 - **Indexing**
@@ -78,49 +88,42 @@ python -c "import nltk; nltk.download('vader_lexicon')"  # if using VADER
 
 4. Prepare datasets (see “Datasets” below) and place CSVs under `data/`
 
-5. Run a full pipeline example
+5. Run: simple IR retrieval
 ```bash
 python main.py \
   --input data/amazon_small_reviews.csv \
-  --out filtered_reviews.csv \
-  --sentiment vader \
-  --min_words 20 \
-  --min_likes 5 \
-  --keep positive,negative \
   --query "laptop battery life" \
-  --recommend_topk 10
+  --retriever tfidf --topk 10 \
+  --rank_lambda 0.8 --min_words 20 --min_likes 5
 ```
 
 ### Usage Examples
-- **CLI: filter by sentiment and usefulness**
+- **CLI: plain search (TF‑IDF)**
 ```bash
-python main.py --input data/reviews.csv --keep positive --min_words 30 --min_likes 10
+python main.py --input data/reviews.csv --query "sound quality" --retriever tfidf --topk 10
 ```
 
-- **CLI: attribute keyword search + recommendation**
+- **CLI: BM25 + usefulness fusion**
 ```bash
 python main.py \
   --input data/amazon_small_reviews.csv \
-  --query "sound quality" \
-  --recommend_topk 5 \
-  --export_json results.json
+  --query "battery life" \
+  --retriever bm25 --topk 10 \
+  --rank_lambda 0.7 --min_likes 5 --min_words 20
 ```
 
-- **Python API (example stub)**
+- **Python API (IR‑only stub)**
 ```python
 from pipeline import ReviewPipeline
 
 pipe = ReviewPipeline(
-    sentiment_backend="vader",  # or "textblob"
-    parallel_workers=8,
+    retriever="tfidf",  # or "bm25"
+    rank_lambda=0.8,
 )
 
 df = pipe.load_csv("data/reviews.csv")
-df = pipe.tag_sentiment_parallel(df)
-df = pipe.extract_features_parallel(df)
-df = pipe.rank_and_filter(df, keep=("positive","negative"), min_words=20, min_likes=5)
-
-results = pipe.search_and_recommend(df, query="battery life", topk=10)
+df = pipe.build_index(df, fields=("review_text","product_title","brand"))
+results = pipe.search(query="battery life", topk=10, min_words=20, min_likes=5)
 pipe.save(results, path="results.json")
 ```
 
@@ -135,17 +138,14 @@ Expected CSV schema (minimal):
 review_id,product_id,product_title,brand,language,rating,review_text,likes,has_image,created_at
 ```
 
-#### Social Media Sources (evidence of accessibility)
-- **Reddit**: The Reddit API supports authenticated access to posts and comments; third‑party libraries exist for collection (e.g., PRAW). See the official API docs via the developer portal: [Reddit Developer Platform](https://developers.reddit.com/). Adhere to API rate limits and terms.
-- **Twitter/X**: Official API access (paid/free tiers subject to change) allows programmatic retrieval of tweets and engagement metrics; consult [X Developer Platform](https://developer.twitter.com/). Respect policy and rate limits.
-- **Weibo (新浪微博)**: Public pages expose posts and comments; availability depends on login/anti‑scraping measures and legal constraints. Obtain permission where required and throttle requests.
-
-Use any social data strictly for research/educational purposes, respect robots.txt, platform terms, and regional regulations. Prefer platform APIs over HTML scraping where possible.
+#### Social Media Sources (access evidence)
+- **Reddit**: 官方 API（PRAW 等库可用），文档 `https://developers.reddit.com/`
+- **Twitter/X**: 开发者平台 `https://developer.twitter.com/`（配额与权限依平台政策）
+- **Weibo**: 公开页可视但受登录/反爬约束，需合规并节流
+研究/教学用途请遵守 robots.txt、平台条款与当地法规，优先 API。
 
 ### What’s Innovative Here
-- **Sentiment filtering + usefulness ranking** combined end‑to‑end to directly tackle the “real vs. noisy” review pain point.
-- **Lightweight, explainable recommendation** driven by keyword association/TF‑IDF — transparent and easy to deploy, no heavy collaborative filtering.
-- **Parallel-first pipeline** to keep latency low on large batches.
+- 用课程级 IR 方法（TF‑IDF/BM25、余弦相似度）构建真实可用的检索排序，并与“有用性”先验融合，形成可解释、可调参的轻量系统。
 
 ### Contributing
 Contributions are welcome! Please open an issue to discuss ideas or submit a PR for:
@@ -159,14 +159,12 @@ This project is released under the MIT License. See `LICENSE` for details.
 Author: nikk909 (yinghua253659@163.com)
 
 ### TODO / Future Work
-- Integrate transformer‑based sentiment (e.g., DistilBERT) behind a feature flag
-- Add weak‑supervision for “usefulness” labels (Snorkel‑style heuristics)
-- Online service mode with FastAPI + streaming ingestion
-- Evaluation suite (precision@k for search/recommendation, A/B‑ready metrics)
-- CJK tokenization improvements for mixed Chinese/English content
+- 提供 `docs/ir-config.md`（默认参数、字段权重与调参建议）
+- 增加标注查询集与评测脚本（precision@k、MAP）
+- Web API/前端 Demo（FastAPI + 简易 UI）
 
 ---
 
-Keywords: sentiment analysis, product recommendation, review filtering, information retrieval, TF‑IDF, VADER, TextBlob, parallel processing, e‑commerce reviews
+Keywords: information retrieval, TF‑IDF, BM25, cosine similarity, ranking, filtering, product reviews, keyword search, evaluation, precision@k, e‑commerce reviews
 
 
